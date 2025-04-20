@@ -2,7 +2,7 @@ import pyautogui
 import time
 from PIL import ImageOps
 
-print("Open the game window! Starting 3 in seconds...")
+print("Open the game window! Starting in 3 seconds...")
 time.sleep(3)
 
 # region coordinates
@@ -39,7 +39,7 @@ while True:
 
     time_since_jump += delta_time
 
-    # if more than 1 color, theres an obstacle
+    # if there's more than 1 color, there must be an obstacle
     if colors != None and len(colors) > 1:
         pyautogui.press("space")
         print("Jump!")
@@ -50,16 +50,3 @@ while True:
     # ensure maximum framerate
     if delta_time < target_delta_time:
         time.sleep(target_delta_time - delta_time)
-
-
-# while True:
-#     delta_time = time.time() - last_time
-
-#     time_since_jump += delta_time
-
-#     if time_since_jump >= jump_cooldown:
-#         pyautogui.press("space")
-#         print(f"Jump! {time_since_jump}")
-#         time_since_jump = 0
-
-#     last_time = time.time()
