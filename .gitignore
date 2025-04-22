@@ -1,4 +1,7 @@
-# vscode
+# Project Specific
+bounds.txt
+
+# VS Code
 .vscode/
 
 # Byte-compiled / optimized / DLL files
