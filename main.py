@@ -31,6 +31,13 @@ def run_bot(game_region: tuple[int, int, int, int], skip_countdown=False):
         "height": 170
     }
 
+    duck_region = {
+        "left": 60,
+        "top": 171,
+        "width": 150,
+        "height": 81
+    }
+
     ground_region = {
         "left": 0,
         "top": 262,
@@ -44,6 +51,7 @@ def run_bot(game_region: tuple[int, int, int, int], skip_countdown=False):
         "width": 380,
         "height": 20
     }
+    
 
     target_loop_time = 1/30
     delta_time = 0
@@ -55,6 +63,7 @@ def run_bot(game_region: tuple[int, int, int, int], skip_countdown=False):
     is_grounded_delay = 0.15 # time to wait after jumping in order to ensure the dino is in the air by the time "is_grounded" is checked for
     frames_since_grounded = 0 # amount of frames the dino has been grounded for
     is_grounded = True
+    is_ducking = False
 
     def check_for_game_over(dino_color: int):
         frame = get_pixels(game_over_region)
@@ -110,6 +119,7 @@ def run_bot(game_region: tuple[int, int, int, int], skip_countdown=False):
 
         sky_color = get_pixel(0, 0)
         dino_color = np.argmax(np.bincount(get_pixels(ground_region).flatten()))
+        # 1077, 21
 
         if is_grounded:
             frames_since_grounded += 1
@@ -172,6 +182,18 @@ def run_bot(game_region: tuple[int, int, int, int], skip_countdown=False):
                 keyboard.release(Controller._Key.space)
                 print("\nHE REACHED THE GROUND SAFELY YAY!!!!!!!\n")
                 is_grounded = True
+                if is_ducking:
+                    keyboard.release(Controller._Key.down)
+                    is_ducking = False
+
+            frame = get_pixels(duck_region)
+
+            unique = np.unique(frame)
+
+            if not is_ducking and airborne_dino_detected and len(unique) == 1:
+                print("DUCK!!!")
+                keyboard.press(Controller._Key.down)
+                is_ducking = True
 
         if time_since_game_over_check >= game_over_check_delay:
             check_for_game_over(dino_color)
