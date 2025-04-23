@@ -12,9 +12,9 @@ def run_bot(game_region: tuple[int, int, int, int], skip_countdown=False):
     # relative obstacle region
     obstacle_region = {
         "left": 145,
-        "top": 205,
+        "top": 202,
         "width": 160,
-        "height": 10
+        "height": 15
     }
 
     feet_region = {
@@ -38,13 +38,33 @@ def run_bot(game_region: tuple[int, int, int, int], skip_countdown=False):
         "height": 2
     }
 
+    game_over_region = {
+        "left": 410,
+        "top": 85,
+        "width": 380,
+        "height": 20
+    }
+
     target_loop_time = 1/30
     delta_time = 0
-    last_time = time.time()
 
+    run_time = 0.0
     time_since_jump = 0.0
-    is_grounded_delay = 0.1 # time to wait after jumping in order to ensure the dino is in the air by the time "is_grounded" is checked for
+    game_over_check_delay = 1.0 # how often (seconds) to check if the game is over
+    time_since_game_over_check = 0.0
+    is_grounded_delay = 0.15 # time to wait after jumping in order to ensure the dino is in the air by the time "is_grounded" is checked for
+    frames_since_grounded = 0 # amount of frames the dino has been grounded for
     is_grounded = True
+
+    def check_for_game_over(dino_color: int):
+        frame = get_pixels(game_over_region)
+        pixels, counts = np.unique(frame, return_counts=True)
+        pixel_map = dict(zip(pixels, counts))  
+
+        game_over_pixel_threshold = 500
+        if dino_color in pixel_map and pixel_map[dino_color] >= game_over_pixel_threshold:
+            print("Game over! :(\n-----------------------------")
+            exit()
 
     if not skip_countdown:
         countdown = 3
@@ -74,11 +94,16 @@ def run_bot(game_region: tuple[int, int, int, int], skip_countdown=False):
 
         return game_pixel_array[top:top+height, left:left+width]
 
+    last_time = time.time()
+
     while True:
         current_time = time.time()
         delta_time = time.time() - last_time
         last_time = time.time()
+
+        run_time += delta_time
         time_since_jump += delta_time
+        time_since_game_over_check += delta_time
 
         frame = np.array(sct.grab(game_region))
         game_pixel_array = np.array(cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY))
@@ -87,6 +112,8 @@ def run_bot(game_region: tuple[int, int, int, int], skip_countdown=False):
         dino_color = np.argmax(np.bincount(get_pixels(ground_region).flatten()))
 
         if is_grounded:
+            frames_since_grounded += 1
+
             frame = get_pixels(obstacle_region)
 
             # find unique pixel colors
@@ -94,12 +121,17 @@ def run_bot(game_region: tuple[int, int, int, int], skip_countdown=False):
 
             print(f"Unique shades: {len(unique)}")
 
+            # avoid accidentally jumping before the game registers that the dino can jump again
+            min_grounded_frames_to_jump = 2
+
             # if theres more than 1 color, there must be an obstacle
-            if len(unique) > 1:
+            if len(unique) > 1 and frames_since_grounded >= min_grounded_frames_to_jump:
+                check_for_game_over(dino_color) # check if the game is over before accidentally hitting space and restarting it
                 keyboard.press(Controller._Key.space)
                 print("jumpy")
                 time_since_jump = 0
                 is_grounded = False
+                frames_since_grounded = 0
 
         elif time_since_jump >= is_grounded_delay:
             feet_detected = False
@@ -115,7 +147,7 @@ def run_bot(game_region: tuple[int, int, int, int], skip_countdown=False):
             if len(pixel_map) > 1:
 
                 # number of pixels in the region that need to not be bg pixels in order to correctly assume the dino's feet are there
-                non_bg_pixel_threshold = 25
+                non_bg_pixel_threshold = 60
                 non_bg_pixels = 0
                 for pixel, count in enumerate(pixel_map):
                     if pixel != sky_color: 
@@ -141,6 +173,9 @@ def run_bot(game_region: tuple[int, int, int, int], skip_countdown=False):
                 print("\nHE REACHED THE GROUND SAFELY YAY!!!!!!!\n")
                 is_grounded = True
 
+        if time_since_game_over_check >= game_over_check_delay:
+            check_for_game_over(dino_color)
+            time_since_game_over_check = 0
 
         loop_time = time.time() - current_time
 
