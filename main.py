@@ -5,16 +5,9 @@ from mss import mss
 from pynput.keyboard import Controller
 import os
 
-
-
 def run_bot(game_region: tuple[int, int, int, int], skip_countdown=False):
-    
     keyboard = Controller()
     sct = mss()
-
-    # TODO: take screenshot of entire game area every frame and
-    # use helper methods to look through the array pixels to make
-    # the regions relative instead of all monitor-based
 
     # relative obstacle region
     obstacle_region = {
@@ -24,24 +17,52 @@ def run_bot(game_region: tuple[int, int, int, int], skip_countdown=False):
         "height": 10
     }
 
+    feet_region = {
+        "left": 48,
+        "top": 265,
+        "width": 27,
+        "height": 9
+    }
+
+    jump_region = {
+        "left": 69,
+        "top": 0,
+        "width": 1,
+        "height": 170
+    }
+
+    ground_region = {
+        "left": 0,
+        "top": 262,
+        "width": game_region["width"],
+        "height": 2
+    }
+
     target_loop_time = 1/30
     delta_time = 0
     last_time = time.time()
 
-    # jump_cooldown = target_loop_time*3 # est. time before another jump would be needed
-    time_since_jump = 0.0 
-    jump_hold_time = 0.6 # time the bot should hold down space for max jump height
-    is_jumping = False
-
+    time_since_jump = 0.0
+    is_grounded_delay = 0.1 # time to wait after jumping in order to ensure the dino is in the air by the time "is_grounded" is checked for
+    is_grounded = True
 
     if not skip_countdown:
-        print("Open the game window! Starting in 3 seconds...")
-        time.sleep(3)
+        countdown = 3
+        while countdown > 0:
+            print(f"Open the game window! Starting in {countdown} seconds...")
+            time.sleep(1)
+            countdown -= 1
 
     keyboard.press(Controller._Key.space)
     keyboard.release(Controller._Key.space)
 
-    pixels: np.ndarray = None
+    game_pixel_array: np.ndarray = None
+    def get_pixel(x: int, y: int) -> int:
+        """
+        Extract a single relative pixel's grayscale color value.
+        """
+        return game_pixel_array[y, x]
+    
     def get_pixels(region: tuple[int, int, int, int]) -> np.ndarray:
         """
         Extract a subregion of relative pixels from the main game capture.
@@ -51,7 +72,7 @@ def run_bot(game_region: tuple[int, int, int, int], skip_countdown=False):
         height = region['height']
         width = region['width']
 
-        return pixels[top:top+height, left:left+width]
+        return game_pixel_array[top:top+height, left:left+width]
 
     while True:
         current_time = time.time()
@@ -60,9 +81,12 @@ def run_bot(game_region: tuple[int, int, int, int], skip_countdown=False):
         time_since_jump += delta_time
 
         frame = np.array(sct.grab(game_region))
-        pixels = np.array(cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY))
+        game_pixel_array = np.array(cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY))
 
-        if not is_jumping:
+        sky_color = get_pixel(0, 0)
+        dino_color = np.argmax(np.bincount(get_pixels(ground_region).flatten()))
+
+        if is_grounded:
             frame = get_pixels(obstacle_region)
 
             # find unique pixel colors
@@ -73,20 +97,57 @@ def run_bot(game_region: tuple[int, int, int, int], skip_countdown=False):
             # if theres more than 1 color, there must be an obstacle
             if len(unique) > 1:
                 keyboard.press(Controller._Key.space)
-                print("Jump!")
+                print("jumpy")
                 time_since_jump = 0
-                is_jumping = True
+                is_grounded = False
 
-        elif time_since_jump >= jump_hold_time:
-            keyboard.release(Controller._Key.space)
-            is_jumping = False
+        elif time_since_jump >= is_grounded_delay:
+            feet_detected = False
+            airborne_dino_detected = False
+
+            # first, check if the dino feet region is satisfied
+            frame = get_pixels(feet_region)
+
+            pixels, counts = np.unique(frame, return_counts=True)
+            pixel_map = dict(zip(pixels, counts))
+
+            # more than just bg pixels
+            if len(pixel_map) > 1:
+
+                # number of pixels in the region that need to not be bg pixels in order to correctly assume the dino's feet are there
+                non_bg_pixel_threshold = 25
+                non_bg_pixels = 0
+                for pixel, count in enumerate(pixel_map):
+                    if pixel != sky_color: 
+                        non_bg_pixels += count
+                
+                if non_bg_pixels >= non_bg_pixel_threshold:
+                    feet_detected = True
+
+            # now check if the dino is in the air or not to differentiate it from a cactus
+            # if feet_detected:
+            frame = get_pixels(jump_region)
+
+            dino_pixel_threshold = 25 # to avoid birds causing false positives
+            dino_pixels = np.count_nonzero(frame == dino_color)
+
+            if dino_pixels >= dino_pixel_threshold:
+                airborne_dino_detected = True
+
+            print(f"{feet_detected=}{' ' if feet_detected else ''} | {airborne_dino_detected=}")
             
+            if feet_detected and not airborne_dino_detected:
+                keyboard.release(Controller._Key.space)
+                print("\nHE REACHED THE GROUND SAFELY YAY!!!!!!!\n")
+                is_grounded = True
+
+
         loop_time = time.time() - current_time
 
         # ensure maximum framerate
         if loop_time < target_loop_time:
             time.sleep(target_loop_time - loop_time)
-        print(f"Time: {time.time() - current_time}")
+        # print(f"Time: {time.time() - current_time}")
 
 
 
