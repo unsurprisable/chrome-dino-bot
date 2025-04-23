@@ -12,9 +12,9 @@ def run_bot(game_region: tuple[int, int, int, int], skip_countdown=False):
     # relative obstacle region
     obstacle_region = {
         "left": 145,
-        "top": 202,
+        "top": 210,
         "width": 160,
-        "height": 15
+        "height": 7
     }
 
     feet_region = {
@@ -50,6 +50,13 @@ def run_bot(game_region: tuple[int, int, int, int], skip_countdown=False):
         "top": 85,
         "width": 380,
         "height": 20
+    }
+
+    duckable_bird_region = {
+        "left": 0,
+        "top": 179,
+        "width": obstacle_region["left"] + obstacle_region["width"],
+        "height": 1
     }
     
 
@@ -124,24 +131,38 @@ def run_bot(game_region: tuple[int, int, int, int], skip_countdown=False):
         if is_grounded:
             frames_since_grounded += 1
 
-            frame = get_pixels(obstacle_region)
-
-            # find unique pixel colors
+            # check for duckable bird
+            frame = get_pixels(duckable_bird_region)
             unique = np.unique(frame)
 
-            print(f"Unique shades: {len(unique)}")
+            if not is_ducking and len(unique) > 1:
+                print("DUCK!!!")
+                keyboard.press(Controller._Key.down)
+                is_ducking = True
+            
+            if is_ducking and len(unique) == 1:
+                keyboard.release(Controller._Key.down)
+                is_ducking = False
 
-            # avoid accidentally jumping before the game registers that the dino can jump again
-            min_grounded_frames_to_jump = 2
+            if not is_ducking:
+                frame = get_pixels(obstacle_region)
 
-            # if theres more than 1 color, there must be an obstacle
-            if len(unique) > 1 and frames_since_grounded >= min_grounded_frames_to_jump:
-                check_for_game_over(dino_color) # check if the game is over before accidentally hitting space and restarting it
-                keyboard.press(Controller._Key.space)
-                print("jumpy")
-                time_since_jump = 0
-                is_grounded = False
-                frames_since_grounded = 0
+                # find unique pixel colors
+                unique = np.unique(frame)
+
+                print(f"Unique shades: {len(unique)}")
+
+                # avoid accidentally jumping before the game registers that the dino can jump again
+                min_grounded_frames_to_jump = 2
+
+                # if theres more than 1 color, there must be an obstacle
+                if len(unique) > 1 and frames_since_grounded >= min_grounded_frames_to_jump:
+                    check_for_game_over(dino_color) # check if the game is over before accidentally hitting space and restarting it
+                    keyboard.press(Controller._Key.space)
+                    print("jumpy")
+                    time_since_jump = 0
+                    is_grounded = False
+                    frames_since_grounded = 0
 
         elif time_since_jump >= is_grounded_delay:
             feet_detected = False
