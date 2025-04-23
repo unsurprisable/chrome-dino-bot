@@ -5,6 +5,9 @@ from mss import mss
 from pynput.keyboard import Controller
 import os
 
+# 84,013 high score but it's because i didn't have time to run it longer
+# i honestly think it can go forever if the speed gets capped at 99,999 score
+
 def run_bot(game_region: tuple[int, int, int, int], skip_countdown=False):
     keyboard = Controller()
     sct = mss()
@@ -32,9 +35,9 @@ def run_bot(game_region: tuple[int, int, int, int], skip_countdown=False):
     }
 
     duck_region = {
-        "left": 60,
+        "left": 70,
         "top": 171,
-        "width": 150,
+        "width": 140,
         "height": 81
     }
 
@@ -150,7 +153,7 @@ def run_bot(game_region: tuple[int, int, int, int], skip_countdown=False):
                 # find unique pixel colors
                 unique = np.unique(frame)
 
-                print(f"Unique shades: {len(unique)}")
+                print(f"Unique shades: {len(unique)}, Time: {delta_time}")
 
                 # avoid accidentally jumping before the game registers that the dino can jump again
                 min_grounded_frames_to_jump = 2
